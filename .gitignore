@@ -2,6 +2,7 @@
 build/
 install/
 log/
+build.md
 
 # Colcon metadata
 .colcon/

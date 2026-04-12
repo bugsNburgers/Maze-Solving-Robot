@@ -477,3 +477,6 @@ Technical:
 - The controller max velocities are unusually high; could cause unrealistic motion.
 
 (These are documentation notes only; this document does not change the project behavior.)
+
+---
+
