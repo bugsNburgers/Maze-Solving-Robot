@@ -1,10 +1,10 @@
 # Autonomous Maze Solving Turtlebot3 Simulation
 
-This repository contains the code to produce a **Gazebo Classic Simulation** of a **Turtlebot3** (***waffle***) robot (designed by *Robotis*) that navigates its way through a simple maze **autonomously**.
+This repository contains code for a **Gazebo Classic** simulation of a **Turtlebot3** (***waffle***) robot (designed by *Robotis*) that navigates a maze **autonomously**.
 
-This repository was built while following the learnings and instructions of the **Udemy** Course **ROS2 Autonomous Driving and SLAM using NAV2 with TurtleBot3** created by **Muhammad Luqman**.
+This project was developed by following concepts from the **Udemy** course **ROS2 Autonomous Driving and SLAM using NAV2 with TurtleBot3** by **Muhammad Luqman**.
 
-The software tools mainly used in building this project are :
+Main software used in this project:
 
 - Python3 Interpreter
 - Basic ROS2 Framework
@@ -13,37 +13,37 @@ The software tools mainly used in building this project are :
 - *slam_toolbox* ROS2 package
 - Navigation2 Stack
 
-Operating System :
+Operating system:
 - Ubuntu (tested on **Ubuntu 22.04** with **ROS 2 Humble**)
 
-In order to deploy this project successfully, all the above listed softwares must be installed in your Ubuntu OS.
+To run this project successfully, install all of the above on your Ubuntu machine.
 
 
-## What is DIFFERENT in this Project ? 
+## What is different in this project?
 
-Originally, this project was built as an **ament_python** type ROS2 package in the above mentioned Course. However, in this repository, I have built the project as an **ament_cmake** type ROS2 package.
+In the original course flow, this project is created as an **ament_python** ROS2 package. In this repository, it is implemented as an **ament_cmake** ROS2 package.
 
 
 ## Deployment
 
-To deploy this project, please follow the below mentioned steps.
+Follow these steps to deploy and run the project.
 
-- **Create a new folder** at a suitable space in your Ubuntu OS. You can name the folder anything you want. But for the sake of this demonstration, I am naming it as **Cloned Repo**
+- **Create a new folder** anywhere in your Ubuntu system. In this guide, it is named **Cloned Repo**.
 
-- Open a **new terminal** inside the folder.
+- Open a **new terminal** inside that folder.
 
-- **Clone this repository** inside the folder by running the following terminal command.
+- **Clone this repository** by running:
 
     ```bash
-    git clone https://github.com/Preetamk97/Autonomous-Maze-Solving-Turtlebot3-Simulation.git
+    git clone https://github.com/bugsNburgers/Maze-Solving-Robot.git
     ```
 
-- This will create a new folder named **Autonomous-Maze-Solving-Turtlebot3-Simulation** inside the **Cloned Repo** directory.
+- This creates a folder named **Maze-Solving-Robot** inside **Cloned Repo**.
 
-- Go inside the **Autonomous-Maze-Solving-Turtlebot3-Simulation** folder through the previously opened terminal.
+- Go into the **Maze-Solving-Robot** folder.
 
     ```
-    cd Autonomous-Maze-Solving-Turtlebot3-Simulation/
+    cd Maze-Solving-Robot/
     ```
 
 - Install dependencies (Gazebo Classic, Turtlebot3 simulation, Nav2, and the required `colcon` ROS plugin).
@@ -57,62 +57,62 @@ To deploy this project, please follow the below mentioned steps.
     - This assumes you already have ROS 2 Humble installed and your ROS apt repo set up.
     - If you see `colcon build` finishing with **0 packages**, you are missing `python3-colcon-ros` (included in `reqs.txt`).
 
-- Ensure the Python scripts are executable (needed because this is an `ament_cmake` package and installs scripts via CMake):
+- Ensure the Python scripts are executable (required because this is an `ament_cmake` package and scripts are installed via CMake):
 
     ```bash
     chmod +x src/autonomous_tb3/script/*.py
     ```
 
-- Next, we need to build this project. So run the following commands from the same terminal.
+- Build the project using the same terminal:
 
     ```bash
     source /opt/ros/humble/setup.bash
     colcon build --symlink-install
     ```
     
-    This will generate 3 (three) new folders inside the **Autonomous Maze Solving Turtlebot3 Simulation** folder namely - **build**, **install** and **log**.
+    This generates three folders in the project directory: **build**, **install**, and **log**.
 
-- Close the previous terminal.
+- Close that terminal.
 
-- Next, finally we can deploy the project.
+- Start the simulation:
     
-    - Open a new terminal (Terminal 1) inside the **Autonomous Maze Solving Turtlebot3 Simulation** directory and run the following commands:
+    - Open a new terminal (Terminal 1) in the **Maze-Solving-Robot** directory and run:
         ```bash
         source /opt/ros/humble/setup.bash
         source install/setup.bash
         ros2 launch autonomous_tb3 tb3_maze_navigation.launch.py
         ```
 
-        This will open a **Gazebo Classic Simulator Window** (with the simulated ***maze world*** and a ***Turtlebot3*** robot - inside of it) AND a **RViz2 Window** (where you can see a 2D map of the maze world). 
+        This opens a **Gazebo Classic** window (with the ***maze world*** and a ***Turtlebot3*** robot) and an **RViz2** window (with the 2D map).
         
-        Use ***Mouse Scroll Wheel*** to ***Zoom IN/Zoom OUT*** in both the **Gazebo** and **RViz2** enviroments.
+        Use the ***mouse scroll wheel*** to ***zoom in/out*** in both **Gazebo** and **RViz2**.
 
-        Use **left mouse button** (to PAN) and ***Mouse Scroll Button*** (to ROTATE) -- for adjusting the position and view of the **maze world** in the **Gazebo** environment - as per your convenience.
+        In **Gazebo**, use the **left mouse button** to pan and the ***scroll button*** to rotate the view.
 
-        Use **left mouse button** (to ROTATE) and ***Mouse Scroll Button*** (to PAN) -- for adjusting the position and view of the **2D maze map** in the **RViz2** environment - a per your convenience.
+        In **RViz2**, use the **left mouse button** to rotate and the ***scroll button*** to pan the map view.
 
-        Also, before proceeding to the next step, it is recomended to keep both the **Gazebo** and **Rviz2** windows opened side by side, so that you that you can see see what's happening in both the windows at the same time.
+        Before continuing, it is recommended to keep **Gazebo** and **RViz2** side by side so you can observe both views together.
 
-    - Wait until Gazebo + RViz are fully open, then open a second parallel terminal (Terminal 2) inside the same directory (while keeping Terminal 1 alive) and run:
+    - Wait until Gazebo and RViz are fully open, then open a second terminal (Terminal 2) in the same directory (keep Terminal 1 running) and run:
         ```bash
         source /opt/ros/humble/setup.bash
         source install/setup.bash
         ros2 run autonomous_tb3 maze_solver.py
         ```
 
-    - If everything is correct, the robot will start moving in Gazebo and you should see the solver print messages like:
+    - If everything is set up correctly, the robot will start moving in Gazebo, and the solver will print messages like:
         - `Nav2 is ready for use!`
         - `Navigating to goal ...`
 
-    Troubleshooting quick hits:
+    Quick troubleshooting:
     - If you get "Entity [waffle] already exists", kill stale sim processes and relaunch:
       `pkill -f gzserver; pkill -f gzclient; pkill -f rviz2`
-    - If the solver says `amcl/get_state service not available`, the Nav2 stack is not fully up (or you killed Terminal 1). Keep the launch alive.
+    - If the solver says `amcl/get_state service not available`, the Nav2 stack is not fully active (or Terminal 1 was stopped). Keep the launch running.
 
 
 ## Output
 
-Once you have followed all the mentioned steps inside the **Deployment** section, the following **simulation output** can be seen in the **Gazebo Classic Simulator** window.
+After following the deployment steps, you should see simulation output like this in **Gazebo Classic**.
 
 <figure class="video_container">
   <video controls="true" allowfullscreen="true" poster="Thumbnail.png">
@@ -120,12 +120,4 @@ Once you have followed all the mentioned steps inside the **Deployment** section
   </video>
 </figure>
 
-You can also see the robot following ***the same*** trajectory in the ***2D maze map*** of the **RViz2** environment simultaneously. I could not screen record the **RViz2** simulation to show you - due to my computer hardware limitations.
-
-
-## References
-
-- [ROS2 Autonomous Driving and SLAM using NAV2 with TurtleBot3 : Udemy Course by Muhammad Luqman](https://www.udemy.com/course/robotics-with-ros-autonomous-driving-and-path-planning-slam/?utm_source=adwords&utm_medium=udemyads&utm_campaign=DSA_Catchall_la.EN_cc.INDIA&utm_content=deal4584&utm_term=_._ag_82569850245_._ad_533220805574_._kw__._de_c_._dm__._pl__._ti_dsa-406594358574_._li_9180185_._pd__._&matchtype=&gclid=CjwKCAjwg4SpBhAKEiwAdyLwvN8lgU-i14AFswYX5PRxoyyk4vTsQTeZowGazBI_IPSTdqcZ9TntWxoCGxUQAvD_BwE)
-- [Official Github Account of Robotis: ROBOTIS-GIT](https://github.com/ROBOTIS-GIT)
-- [Official Github Account of ROS Planning: ros-planning ](https://github.com/ros-planning)
- 
+At the same time, the robot follows the same trajectory in the **2D maze map** in **RViz2**. A separate RViz recording is not included due to hardware limitations.
