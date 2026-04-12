@@ -1,0 +1,18 @@
+# ROS 2 colcon generated folders
+build/
+install/
+log/
+
+# Colcon metadata
+.colcon/
+
+# Python cache/bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor/system noise
+.vscode/
+*.swp
+*.swo
+.DS_Store

@@ -1,0 +1,35 @@
+# Ubuntu 22.04 + ROS 2 Humble dependency list for this repo.
+# Install with:
+#   sudo apt-get update
+#   grep -v '^#' reqs.txt | xargs sudo apt-get install -y
+
+python3-colcon-common-extensions
+python3-colcon-ros
+
+# Gazebo Classic + ROS interface
+# (gazebo_ros_pkgs pulls most Gazebo-ROS integration)
+gazebo
+ros-humble-gazebo-ros-pkgs
+ros-humble-gazebo-msgs
+
+# Turtlebot3 simulation
+ros-humble-turtlebot3
+ros-humble-turtlebot3-gazebo
+
+# Navigation2 + Simple Commander
+ros-humble-navigation2
+ros-humble-nav2-bringup
+ros-humble-nav2-simple-commander
+
+# Visualization
+ros-humble-rviz2
+
+# Common runtime utilities used by included launches
+ros-humble-robot-state-publisher
+ros-humble-joint-state-publisher
+ros-humble-xacro
+
+# Optional mapping stacks (present in this repo)
+ros-humble-slam-toolbox
+ros-humble-cartographer
+ros-humble-cartographer-ros
