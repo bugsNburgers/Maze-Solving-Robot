@@ -22,7 +22,7 @@ install(PROGRAMS
   script/occupancy_grid_pub.py
   script/entity_spawner.py
   script/maze_solver.py
-  script/maze_generator.py
+  scripts/maze_generator.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
