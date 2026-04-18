@@ -17,148 +17,177 @@
 # Authors: Joep Tool
 
 
-# Base code has been taken from the official Github account of Robotis: ROBOTIS-GIT/turtlebot3_simulations ('humble-devel' Branch)/turtlebot3_gazebo/launch/turtlebot3_world.launch.py  --- Modified by the myself (Pritam Rankan Kalita a.k.a preetamk97) as per my project requirements.
+# Phase 5 – Refactored launch with deterministic startup order:
+#   1. maze_generator.py  (writes /tmp/autonomous_tb3/maze_runtime.json)
+#   2. Gazebo core (gzserver + gzclient)
+#   3. robot_state_publisher
+#   4. procedural_maze_spawner  (SDF → /spawn_entity; publishes start/goal topics)
+#   5. spawn_turtlebot3         (places robot at procedural start cell)
+#   6. Nav2 bringup with slam=true  (SLAM builds map at runtime; no static map file)
+#   7. RViz2
+#
+# The static entity_spawner / maze_map.yaml coupling has been removed from this path.
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    RegisterEventHandler,
+    SetEnvironmentVariable,
+)
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node 
-from launch.actions import SetEnvironmentVariable
+from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
+    pkg_autonomous_tb3 = get_package_share_directory('autonomous_tb3')
     pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
-    maze_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'worlds', 'tb3_maze_world', 'model.sdf')
-    maze_map_config_file_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'config', 'maze_map.yaml')
-    params_config_file_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'config', 'tb3_nav_params.yaml')
-    rviz_config_file_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'config', 'tb3_nav.rviz')
-    
-    use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    x_pose = LaunchConfiguration('x_pose', default='-3.947650')    # x-coordinate for spawning the turtlebot3 robot inside the gazebo classic simulation environment.
-    y_pose = LaunchConfiguration('y_pose', default='-7.930550')    # y-coordinate for spawning the turtlebot3 robot inside the gazebo classic simulation environment.
-    
-    # To get the correct x & y coordinates for spawning the turtlebot3 robot, 
-    
-        ## firstly, launch this file while keeping the following line of code commented - "ld.add_action(spawn_turtlebot_cmd)"  [line can be found at the bottom part of this code].
-        
-        ## to launch this file
-            ### open a terminal inside the workspace directory of this project.
-            ### run the folllowing commands from the terminal:
-                #### `source install/setup.bash`
-                #### `ros2 launch autonomous_tb3 tb3_maze_navigation.launch.py`
-        
-        ## after doing the step mentioned above, this will render the maze world of this project -- inside the gazebo classic simulation environment -- but without the turtlebot3 robot in it.
-        
-        ## Now, inside the maze world simulation, place a unit box at the entry point of the maze - this will be the starting position of our robot when we start the simulation.
-        
-        ## Find the x & y coordinates of the unit box at == left-side-vertical panel of the Gazebo window > Models > unit_box > property-tab > pose.
-        
-        ## Copy the x & y coordinate values of the unit box from there, and paste them in the appropriate places in the code line 38 and 39 above.
-        
-    ## Uncomment the line of code which was previously commented - "ld.add_action(spawn_turtlebot_cmd)". Re-build the workspace. And launch this file once again. This time, you will see the complete simulation -- maze + turtlebot3 robot (which spawned in the same position where you placed the unit box previously).
-    
-    
-    # Setting the type of turtlebot3 robot to be used in simulation.
-    setting_turtlebot3_model = SetEnvironmentVariable(
-        name = "TURTLEBOT3_MODEL",
-        value="waffle"
+    pkg_tb3_gazebo = get_package_share_directory('turtlebot3_gazebo')
+    pkg_nav2_bringup = get_package_share_directory('nav2_bringup')
+
+    launch_file_dir = os.path.join(pkg_tb3_gazebo, 'launch')
+    params_config_file_path = os.path.join(pkg_autonomous_tb3, 'config', 'tb3_nav_params.yaml')
+    rviz_config_file_path = os.path.join(pkg_autonomous_tb3, 'config', 'tb3_nav.rviz')
+
+    # ── Declared launch arguments (visible via --show-args) ──────────────────
+    declare_use_sim_time = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation (Gazebo) clock',
+    )
+    # Robot spawn position is fixed at the procedural maze start cell (1,1):
+    #   world x = origin_x + (col+0.5)*resolution = -5.0 + 1.5*0.5 = -4.25
+    #   world y = origin_y + (row+0.5)*resolution = -5.0 + 1.5*0.5 = -4.25
+    declare_x_pose = DeclareLaunchArgument(
+        'x_pose',
+        default_value='-4.25',
+        description='Initial x-coordinate for TurtleBot3 (procedural maze start cell)',
+    )
+    declare_y_pose = DeclareLaunchArgument(
+        'y_pose',
+        default_value='-4.25',
+        description='Initial y-coordinate for TurtleBot3 (procedural maze start cell)',
     )
 
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    x_pose = LaunchConfiguration('x_pose')
+    y_pose = LaunchConfiguration('y_pose')
+
+    # ── Environment ──────────────────────────────────────────────────────────
+    setting_turtlebot3_model = SetEnvironmentVariable(
+        name='TURTLEBOT3_MODEL',
+        value='waffle',
+    )
+
+    # ── Step 1: Generate the procedural maze artifact ─────────────────────────
+    # maze_generator.py exits immediately after writing the JSON file, so
+    # OnProcessExit fires as soon as the artifact is ready.
+    maze_gen = ExecuteProcess(
+        cmd=['ros2', 'run', 'autonomous_tb3', 'maze_generator.py'],
+        output='screen',
+        name='maze_generator',
+    )
+
+    # ── Steps 2-7: launched only after the maze artifact exists ──────────────
+
+    # 2a. Gazebo server
     gzserver_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_gazebo_ros, 'launch', 'gzserver.launch.py')
         ),
     )
 
+    # 2b. Gazebo client (GUI)
     gzclient_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_gazebo_ros, 'launch', 'gzclient.launch.py')
-        )
+        ),
     )
 
+    # 3. Robot state publisher
     robot_state_publisher_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(launch_file_dir, 'robot_state_publisher.launch.py')
         ),
-        launch_arguments={'use_sim_time': use_sim_time}.items()
+        launch_arguments={'use_sim_time': use_sim_time}.items(),
     )
 
+    # 4. Procedural maze spawner:
+    #    reads maze_runtime.json → builds SDF → calls /spawn_entity
+    #    publishes /procedural_maze/start_pose and /procedural_maze/goal_pose
+    procedural_maze_spawner = Node(
+        package='autonomous_tb3',
+        executable='procedural_maze_spawner.py',
+        name='procedural_maze_spawner',
+        output='screen',
+    )
+
+    # 5. Spawn TurtleBot3 at the procedural maze start cell
     spawn_turtlebot_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(launch_file_dir, 'spawn_turtlebot3.launch.py')
         ),
         launch_arguments={
-            'x_pose': x_pose,   # x-coordinate for spawning the turtlebot3 robot inside the gazebo classic simulation environment.
-            'y_pose': y_pose    # y-coordinate for spawning the turtlebot3 robot inside the gazebo classic simulation environment.
-        }.items()
+            'x_pose': x_pose,
+            'y_pose': y_pose,
+        }.items(),
     )
-    
-    # Spawning maze world
-    maze_spawner = Node(
-        package = 'autonomous_tb3',
-        executable = 'entity_spawner.py',
-        name = "maze_spawner",
-        arguments = [maze_path, 'tb3_maze_world', '0.0', '0.0']
-            # maze_path = path of the .sdf file for rendering the model
-            # 'tb3_maze_world' = name of the model which can found inside the 'model.config' file for this model.
-            # '0.0', '0.0' = x & y coordinates for spawning the model inside the gazebo classic simulation. 
-    )
-    
-    # Launching Rviz2
-    rviz_launching = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2_node",    # node name can be anything of your choice
-        arguments = ['-d', rviz_config_file_path],  # Only required for navigation purpose.
-        output="screen"
-    )
-    
-    # Using 'slam_toolbox' package's 'online_async_launch.py' launch file to for mapping the maze.
-    maze_mapping_slam = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource (
-            launch_file_path=os.path.join(get_package_share_directory('slam_toolbox'), 'launch', 'online_async_launch.py')                        
-        )        
-    )
-    
-    # We can also use the 'mapping.launch.py' launch file of this package for using the cartographer_ros package for mapping purposes instead of slam_toolbox package. However, slam_toolbox is the recomended package for mapping in ros2.
-    maze_mapping_cartographer = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource (
-            launch_file_path=os.path.join(get_package_share_directory('autonomous_tb3'), 'launch', 'mapping.launch.py')                        
-        )        
-    )
-    
-    # Integrating Nav2 Stack : Launching the bringup_launch.py file
+
+    # 6. Nav2 bringup with SLAM enabled.
+    #    slam=true makes nav2_bringup launch slam_toolbox (online_async) instead
+    #    of map_server + AMCL, so no static map file is required.
     navigation = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource (
-            launch_file_path=os.path.join(get_package_share_directory('nav2_bringup'), "launch", "bringup_launch.py")
-            
-            # Using the 'bringup_launch.py' file inside the 'launch' directory of the 'nav2_bringup' package's 'share' directory - for using the Navigation2 stack with the project.
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_nav2_bringup, 'launch', 'bringup_launch.py')
         ),
-        launch_arguments = {
-            'map' : maze_map_config_file_path,
-            'params_file' : params_config_file_path
-            }.items(),
+        launch_arguments={
+            'slam': 'true',
+            'params_file': params_config_file_path,
+            'use_sim_time': use_sim_time,
+        }.items(),
     )
-     
+
+    # 7. RViz2
+    rviz_launching = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2_node',
+        arguments=['-d', rviz_config_file_path],
+        output='screen',
+    )
+
+    # Chain steps 2-7 behind the maze generator so the artifact is always
+    # present before any downstream node tries to read it.
+    post_gen_handler = RegisterEventHandler(
+        OnProcessExit(
+            target_action=maze_gen,
+            on_exit=[
+                gzserver_cmd,
+                gzclient_cmd,
+                robot_state_publisher_cmd,
+                procedural_maze_spawner,
+                spawn_turtlebot_cmd,
+                navigation,
+                rviz_launching,
+            ],
+        )
+    )
 
     ld = LaunchDescription()
 
-    # Add the commands to the launch description
+    # Declare arguments first so --show-args works correctly.
+    ld.add_action(declare_use_sim_time)
+    ld.add_action(declare_x_pose)
+    ld.add_action(declare_y_pose)
+
     ld.add_action(setting_turtlebot3_model)
-    ld.add_action(gzserver_cmd)
-    ld.add_action(gzclient_cmd)
-    ld.add_action(robot_state_publisher_cmd)
-    ld.add_action(spawn_turtlebot_cmd)
-    ld.add_action(maze_spawner) 
-    ld.add_action(rviz_launching)
-    # ld.add_action(maze_mapping_slam)
-    # ld.add_action(maze_mapping_cartographer)
-    ld.add_action(navigation)
-    
-    
+    ld.add_action(maze_gen)
+    ld.add_action(post_gen_handler)
+
     return ld

@@ -31,7 +31,7 @@ from geometry_msgs.msg import PoseStamped
 # ---------------------------------------------------------------------------
 
 ARTIFACT_PATH = "/tmp/autonomous_tb3/maze_runtime.json"
-WALL_HEIGHT = 0.5          # metres – taller than TurtleBot3 lidar at ~0.18 m
+WALL_HEIGHT = 0.5          # meters - taller than TurtleBot3 lidar at ~0.18 m
 MODEL_NAME = "procedural_maze"
 PUBLISH_RATE_HZ = 1.0      # how often to re-publish start/goal (seconds)
 
@@ -150,9 +150,9 @@ class ProceduralMazeSpawner(Node):
         )
 
         client = self.create_client(SpawnEntity, "/spawn_entity")
-        self.get_logger().info("Waiting for /spawn_entity service …")
+        self.get_logger().info("Waiting for /spawn_entity service ...")
         client.wait_for_service()
-        self.get_logger().info("/spawn_entity ready – spawning procedural maze")
+        self.get_logger().info("/spawn_entity ready - spawning procedural maze")
 
         request = SpawnEntity.Request()
         request.name = MODEL_NAME
