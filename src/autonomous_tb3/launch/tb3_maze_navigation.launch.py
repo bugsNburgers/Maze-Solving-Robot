@@ -150,7 +150,7 @@ def generate_launch_description():
             os.path.join(pkg_nav2_bringup, 'launch', 'bringup_launch.py')
         ),
         launch_arguments={
-            'slam': 'true',
+            'slam': 'True',
             'map': '',
             'params_file': params_config_file_path,
             'use_sim_time': use_sim_time,
