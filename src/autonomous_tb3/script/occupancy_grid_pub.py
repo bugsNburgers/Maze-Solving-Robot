@@ -4,7 +4,6 @@
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
 # Additional Imports
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Header

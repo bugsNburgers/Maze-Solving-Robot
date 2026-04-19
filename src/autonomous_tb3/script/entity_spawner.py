@@ -26,7 +26,8 @@ def main():
     request = SpawnEntity.Request()
     sdf_path = argv[0]  # location of .sdf file of the spawning model.
     request.name = argv[1]   # given name for the spawining model - can be found in 'model.config' file.
-    request.xml = open(sdf_path, 'r').read()
+    with open(sdf_path, 'r') as sdf_file:
+        request.xml = sdf_file.read()
     request.initial_pose.position.x = float(argv[2])  # x-coodinate for spawing the model in gazebo environment.
     request.initial_pose.position.y = float(argv[3])  # y-coodinate for spawing the model in gazebo environment.
     
@@ -37,7 +38,7 @@ def main():
         print('response: %r' % future.result())
     else:
         raise RuntimeError(
-            'exceprion while calling service: %r' % future.exception()
+            'exception while calling service: %r' % future.exception()
         )
     node.get_logger().info('Done! Shutting down node.')
     node.destroy_node()
