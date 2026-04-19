@@ -142,12 +142,16 @@ def generate_launch_description():
     # 6. Nav2 bringup with SLAM enabled.
     #    slam=true makes nav2_bringup launch slam_toolbox (online_async) instead
     #    of map_server + AMCL, so no static map file is required.
+    #    bringup_launch.py declares 'map' as a required argument (no default),
+    #    so an empty string is passed to satisfy the declaration without loading
+    #    a map (the value is unused when slam=true).
     navigation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_nav2_bringup, 'launch', 'bringup_launch.py')
         ),
         launch_arguments={
             'slam': 'true',
+            'map': '',
             'params_file': params_config_file_path,
             'use_sim_time': use_sim_time,
         }.items(),
