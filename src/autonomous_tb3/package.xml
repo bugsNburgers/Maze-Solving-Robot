@@ -3,9 +3,9 @@
 <package format="3">
   <name>autonomous_tb3</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Autonomous TurtleBot3 maze solving package with procedural maze generation, dynamic map artifacts, and Nav2-based navigation.</description>
   <maintainer email="pritam@todo.todo">pritam</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <!-- Adding the below dependency to configure the package to work with Python codes. -->

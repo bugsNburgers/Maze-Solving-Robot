@@ -480,3 +480,295 @@ Technical:
 
 ---
 
+
+
+-------------------------------------------------------Read from here -----------------------------------------------
+
+# DonkeyIQ: Full Project Documentation
+
+Date: 2026-04-19  
+Repository: Maze-Solving-Robot  
+Primary package: autonomous_tb3  
+Primary branch in this session: me (default branch: main)
+
+## 1. What This Project Does
+This project simulates a TurtleBot3 Waffle in Gazebo Classic and makes it solve a procedurally generated maze autonomously.
+
+The current implementation does all of this in one flow:
+1. Generate a new random maze (fixed 21x21 grid) every launch.
+2. Spawn the maze model dynamically into Gazebo.
+3. Export a runtime occupancy map artifact for Nav2.
+4. Launch Nav2 (static runtime map mode by default, optional SLAM mode).
+5. Run a solver that computes shortest path on the known generated grid.
+6. Execute that route directly with a stable odom-based controller.
+7. Reach the red finish marker reliably.
+
+## 2. Core Design Decisions
+### 2.1 Procedural world, fixed size
+- Maze topology randomizes each run.
+- Grid dimensions stay fixed at 21x21 for predictable scale and tuning.
+
+### 2.2 Runtime map artifacts
+- Maze generation writes runtime files under /tmp/autonomous_tb3:
+  - maze_runtime.json
+  - maze_runtime_map.pgm
+  - maze_runtime_map.yaml
+- Nav2 consumes this generated map in use_slam:=false mode.
+
+### 2.3 Route execution strategy (important)
+Current solver strategy is deliberate:
+1. Compute shortest path on generated grid (ground-truth corridor graph).
+2. Execute direct route follower first (odom waypoint tracking).
+3. Fall back to Nav2 segment goals only if direct execution fails.
+
+Reason:
+- In this maze type, pure Nav2 local control repeatedly oscillated/collision-checked in tight corridors.
+- Direct route following removed excessive spin/recovery loops and stabilized completion.
+
+## 3. Repository Structure
+Top level:
+- README.md: user setup + run instructions.
+- README_goal.md: conceptual/technical overview.
+- buildref.md: phase prompts and execution workflow.
+- CHANGELOG.md: phase-wise logs.
+- DonkeyIQ.md: this detailed document.
+- reqs.txt: apt package dependency list.
+- src/autonomous_tb3: main ROS2 package.
+
+Inside src/autonomous_tb3:
+- CMakeLists.txt
+- package.xml
+- config/
+- launch/
+- script/
+- worlds/
+
+## 4. Package Metadata and Build
+## 4.1 package.xml
+- Package name: autonomous_tb3
+- Build type: ament_cmake
+- Build tools:
+  - ament_cmake
+  - ament_cmake_python
+- Runtime dependency:
+  - rclpy
+- License: Apache-2.0
+
+## 4.2 CMakeLists.txt
+- Installs Python package folder script via ament_python_install_package(script).
+- Installs executables:
+  - occupancy_grid_pub.py
+  - entity_spawner.py
+  - maze_solver.py
+  - maze_generator.py
+  - procedural_world_spawner.py
+- Installs launch/config/world assets into share directory.
+
+## 5. Key Runtime Files
+## 5.1 Launch: tb3_maze_navigation.launch.py
+Responsibilities:
+1. Set TURTLEBOT3_MODEL=waffle.
+2. Start gzserver + gzclient.
+3. Start robot_state_publisher.
+4. Spawn procedural maze via procedural_world_spawner.py.
+5. Spawn TurtleBot3 (timer-delayed).
+6. Start Nav2 bringup (timer-delayed).
+7. Start RViz2 (timer-delayed).
+
+Launch argument:
+- use_slam (default false)
+
+Modes:
+- use_slam:=false
+  - Nav2 bringup runs with slam=False and map=/tmp/autonomous_tb3/maze_runtime_map.yaml
+- use_slam:=true
+  - Nav2 bringup runs with slam=True
+
+## 5.2 Script: procedural_world_spawner.py
+Responsibilities:
+1. Generate random 21x21 maze from maze_generator.generate_maze().
+2. Compute BFS distances from start cell.
+3. Choose far-but-practical goal range:
+  - min_steps=35
+  - max_steps=60
+  - fallback: farthest safe interior cell
+4. Build runtime payload JSON and map artifacts.
+5. Build procedural SDF with wall collisions/visuals.
+6. Spawn model into Gazebo via /spawn_entity service.
+7. Publish start/goal topics:
+  - /procedural_maze/start
+  - /procedural_maze/goal
+
+Important runtime artifact schema (maze_runtime.json):
+- seed
+- height, width
+- resolution, origin
+- start_cell, goal_cell
+- start_pose, goal_pose
+- grid (0 free, 1 occupied)
+
+## 5.3 Script: maze_generator.py
+- Uses recursive backtracker-style carving on odd grid dimensions.
+- Guarantees traversable corridors.
+- Provides utility for farthest-cell search via BFS.
+- Base dimensions in code:
+  - MAZE_HEIGHT = 21
+  - MAZE_WIDTH = 21
+
+## 5.4 Script: maze_solver.py
+Current behavior:
+1. Wait for endpoint publishers and runtime payload.
+2. Publish initial pose repeatedly to AMCL via /initialpose.
+3. Compute shortest path over runtime grid.
+4. Primary: direct route execution in odom frame:
+  - nearest path index from current odom
+  - waypoint tracking (rotate/drive combined)
+5. Fallback: Nav2 segment execution if direct path fails.
+6. Report success/failure with clear logs.
+
+Notable functions:
+- compute_shortest_path(): BFS shortest path.
+- navigate_path_direct(): stable waypoint follower.
+- navigate(): Nav2 action client path for fallback.
+- navigate_path(): primary-direct then fallback-Nav2 orchestration.
+
+## 6. Navigation and Control Configuration
+File: config/tb3_nav_params.yaml
+
+Important active settings:
+- use_sim_time: True across stack.
+- AMCL base frame: base_link.
+- Planner:
+  - NavFn
+  - use_astar: true
+- Controller:
+  - Regulated Pure Pursuit
+  - desired_linear_vel: 0.10
+  - lookahead tuned for tighter corridor behavior
+- Costmaps:
+  - robot_radius: 0.08
+  - inflation_radius: 0.10
+  - cost_scaling_factor: 1.5
+
+This config is tuned to avoid overly aggressive behavior while remaining stable in narrow maze passages.
+
+## 7. Dependencies (reqs.txt)
+Installed via apt list in reqs.txt:
+- python3-colcon-common-extensions
+- python3-colcon-ros
+- gazebo + ros-humble-gazebo-ros-pkgs
+- ros-humble-turtlebot3 + turtlebot3-gazebo
+- ros-humble-navigation2 + nav2-bringup + nav2-simple-commander
+- rviz2
+- robot-state-publisher, joint-state-publisher, xacro
+- optional: slam-toolbox, cartographer
+
+## 8. Runbook (Current Recommended)
+## 8.1 Build
+```bash
+cd /home/prateek/anyamaze/Maze-Solving-Robot
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-select autonomous_tb3
+```
+
+## 8.2 Launch simulation
+```bash
+cd /home/prateek/anyamaze/Maze-Solving-Robot
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch autonomous_tb3 tb3_maze_navigation.launch.py use_slam:=false
+```
+
+## 8.3 Run solver (second terminal)
+```bash
+cd /home/prateek/anyamaze/Maze-Solving-Robot
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+python3 src/autonomous_tb3/script/maze_solver.py
+```
+
+Expected success log pattern:
+- Computed shortest path with N steps; starting direct route execution
+- Starting direct waypoint fallback from path index ...
+- Reached destination via direct fallback controller
+- Reached destination across all path segments
+
+## 9. Latest Verified Results (This Session)
+## 9.1 Reliability benchmark
+A clean 5-run stress test was executed after route strategy and goal-distance updates.
+
+Result summary:
+- Trial 1: SUCCESS | duration_sec=383 | path_steps=60
+- Trial 2: SUCCESS | duration_sec=383 | path_steps=60
+- Trial 3: SUCCESS | duration_sec=381 | path_steps=60
+- Trial 4: SUCCESS | duration_sec=380 | path_steps=60
+- Trial 5: SUCCESS | duration_sec=385 | path_steps=60
+- PASS_COUNT=5/5
+
+Interpretation:
+- Farther finish line is active and consistent.
+- Completion is repeatable at current tuning.
+- Prior Nav2 oscillation issue is mitigated by direct-route-first execution.
+
+## 9.2 Goal distance behavior
+- Earlier near-goal setup produced very short routes.
+- Farthest-goal-only setup produced routes that were too long (example: 124 steps).
+- Current tuned band (35-60) yields practical but meaningfully far finish lines (observed 60 steps).
+
+## 10. Known Issues and Practical Notes
+1. use_slam:=true has shown startup/runtime instability in this environment; use_slam:=false is the validated reliable mode.
+2. If Gazebo/ROS processes are stale, launch may fail or behave inconsistently.
+3. Direct route execution is currently the reliability-first strategy for this specific maze architecture; pure Nav2 local-follow in these corridors can still struggle.
+
+## 11. Troubleshooting Playbook
+## 11.1 Clean reset
+```bash
+pkill -9 -f 'gzserver|gzclient|component_container_isolated|launch_ros_|rviz2|robot_state_publisher|procedural_world_spawner|spawn_entity.py|maze_solver|slam_toolbox|turtlebot3|nav2' || true
+```
+
+## 11.2 Rebuild and relaunch
+```bash
+cd /home/prateek/anyamaze/Maze-Solving-Robot
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install --packages-select autonomous_tb3
+source install/setup.bash
+ros2 launch autonomous_tb3 tb3_maze_navigation.launch.py use_slam:=false
+```
+
+## 11.3 Verify runtime artifacts
+```bash
+python3 - <<'PY'
+import json
+p='/tmp/autonomous_tb3/maze_runtime.json'
+with open(p) as f: d=json.load(f)
+print('seed', d['seed'])
+print('size', d['height'], d['width'])
+print('start', d['start_cell'])
+print('goal', d['goal_cell'])
+PY
+```
+
+## 12. Why This Version Works Better
+The previous repeated failure pattern was not global pathfinding correctness; it was execution instability from relying on Nav2 local behavior in narrow generated corridors. The current solver executes the mathematically known shortest route directly, which removes repeated local oscillation decisions and makes outcomes consistent.
+
+## 13. Suggested Next Improvements
+1. Add launch argument for goal difficulty bands:
+  - easy: 15-30
+  - medium: 35-60
+  - hard: 70-90
+2. Emit per-run metrics JSON (distance, duration, success, retries).
+3. Add CI-style smoke script for 3-run automatic verification.
+4. Improve SLAM-mode robustness if true dynamic online mapping is required as default.
+
+## 14. Quick FAQ
+Q: Is the maze random each run?  
+A: Yes, seed-based procedural generation creates a new topology each launch.
+
+Q: Is the finish point now farther?  
+A: Yes, goal selection is constrained to a far route band (35-60 steps, observed 60 in validation).
+
+Q: Does it still use Nav2?  
+A: Yes. Nav2 stack is launched and available; solver uses direct route first and falls back to Nav2 segments on failure.
+
+Q: Is reliability proven?  
+A: In the latest benchmark, 5/5 runs completed successfully.

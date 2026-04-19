@@ -23,6 +23,7 @@ install(PROGRAMS
   script/entity_spawner.py
   script/maze_solver.py
   script/maze_generator.py
+  script/procedural_world_spawner.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

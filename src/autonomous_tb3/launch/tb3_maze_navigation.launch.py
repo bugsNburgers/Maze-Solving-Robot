@@ -24,6 +24,9 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
+from launch.actions import TimerAction
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node 
@@ -33,14 +36,20 @@ from launch.actions import SetEnvironmentVariable
 def generate_launch_description():
     launch_file_dir = os.path.join(get_package_share_directory('turtlebot3_gazebo'), 'launch')
     pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
-    maze_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'worlds', 'tb3_maze_world', 'model.sdf')
-    maze_map_config_file_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'config', 'maze_map.yaml')
     params_config_file_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'config', 'tb3_nav_params.yaml')
     rviz_config_file_path = os.path.join(get_package_share_directory('autonomous_tb3'), 'config', 'tb3_nav.rviz')
+    runtime_map_path = '/tmp/autonomous_tb3/maze_runtime_map.yaml'
     
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
-    x_pose = LaunchConfiguration('x_pose', default='-3.947650')    # x-coordinate for spawning the turtlebot3 robot inside the gazebo classic simulation environment.
-    y_pose = LaunchConfiguration('y_pose', default='-7.930550')    # y-coordinate for spawning the turtlebot3 robot inside the gazebo classic simulation environment.
+    use_slam = LaunchConfiguration('use_slam', default='false')
+    x_pose = LaunchConfiguration('x_pose', default='-4.25')    # Default start cell world-x for fixed 21x21 procedural maze.
+    y_pose = LaunchConfiguration('y_pose', default='-4.25')    # Default start cell world-y for fixed 21x21 procedural maze.
+
+    use_slam_arg = DeclareLaunchArgument(
+        'use_slam',
+        default_value='false',
+        description='Enable SLAM mode (true) or runtime static-map mode (false).'
+    )
     
     # To get the correct x & y coordinates for spawning the turtlebot3 robot, 
     
@@ -101,9 +110,9 @@ def generate_launch_description():
     # Spawning maze world
     maze_spawner = Node(
         package = 'autonomous_tb3',
-        executable = 'entity_spawner.py',
+        executable = 'procedural_world_spawner.py',
         name = "maze_spawner",
-        arguments = [maze_path, 'tb3_maze_world', '0.0', '0.0']
+        arguments = []
             # maze_path = path of the .sdf file for rendering the model
             # 'tb3_maze_world' = name of the model which can found inside the 'model.config' file for this model.
             # '0.0', '0.0' = x & y coordinates for spawning the model inside the gazebo classic simulation. 
@@ -133,32 +142,50 @@ def generate_launch_description():
     )
     
     # Integrating Nav2 Stack : Launching the bringup_launch.py file
-    navigation = IncludeLaunchDescription(
+    navigation_runtime_map = IncludeLaunchDescription(
         PythonLaunchDescriptionSource (
             launch_file_path=os.path.join(get_package_share_directory('nav2_bringup'), "launch", "bringup_launch.py")
             
             # Using the 'bringup_launch.py' file inside the 'launch' directory of the 'nav2_bringup' package's 'share' directory - for using the Navigation2 stack with the project.
         ),
         launch_arguments = {
-            'map' : maze_map_config_file_path,
+            'slam': 'False',
+            'use_sim_time': 'True',
+            'map': runtime_map_path,
             'params_file' : params_config_file_path
             }.items(),
+        condition=UnlessCondition(use_slam),
+    )
+
+    navigation_slam = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource (
+            launch_file_path=os.path.join(get_package_share_directory('nav2_bringup'), "launch", "bringup_launch.py")
+        ),
+        launch_arguments = {
+            'slam': 'True',
+            'use_sim_time': 'True',
+            'map': runtime_map_path,
+            'params_file' : params_config_file_path
+            }.items(),
+        condition=IfCondition(use_slam),
     )
      
 
     ld = LaunchDescription()
 
     # Add the commands to the launch description
+    ld.add_action(use_slam_arg)
     ld.add_action(setting_turtlebot3_model)
     ld.add_action(gzserver_cmd)
     ld.add_action(gzclient_cmd)
+    ld.add_action(maze_spawner)
     ld.add_action(robot_state_publisher_cmd)
-    ld.add_action(spawn_turtlebot_cmd)
-    ld.add_action(maze_spawner) 
-    ld.add_action(rviz_launching)
-    # ld.add_action(maze_mapping_slam)
+    ld.add_action(TimerAction(period=2.0, actions=[spawn_turtlebot_cmd]))
+    # Nav2 bringup with slam:=True already launches SLAM toolbox internally.
+    ld.add_action(TimerAction(period=6.0, actions=[navigation_runtime_map]))
+    ld.add_action(TimerAction(period=6.0, actions=[navigation_slam]))
+    ld.add_action(TimerAction(period=8.0, actions=[rviz_launching]))
     # ld.add_action(maze_mapping_cartographer)
-    ld.add_action(navigation)
     
     
     return ld
