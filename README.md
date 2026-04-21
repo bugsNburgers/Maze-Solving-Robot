@@ -84,6 +84,13 @@ Follow these steps to deploy and run the project.
         ```
 
         This opens a **Gazebo Classic** window (with the ***maze world*** and a ***Turtlebot3*** robot) and an **RViz2** window (with the 2D map).
+
+        To run in **SLAM mode** (instead of runtime static-map mode), launch with:
+        ```bash
+        source /opt/ros/humble/setup.bash
+        source install/setup.bash
+        ros2 launch autonomous_tb3 tb3_maze_navigation.launch.py use_slam:=true
+        ```
         
         Use the ***mouse scroll wheel*** to ***zoom in/out*** in both **Gazebo** and **RViz2**.
 
