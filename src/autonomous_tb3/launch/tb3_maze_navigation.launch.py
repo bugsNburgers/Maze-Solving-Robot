@@ -26,6 +26,7 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.actions import TimerAction
 from launch.actions import DeclareLaunchArgument
+from launch.actions import SetLaunchConfiguration
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -42,13 +43,29 @@ def generate_launch_description():
     
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     use_slam = LaunchConfiguration('use_slam', default='false')
+    slam = LaunchConfiguration('slam', default='false')
     x_pose = LaunchConfiguration('x_pose', default='-4.25')    # Default start cell world-x for fixed 21x21 procedural maze.
     y_pose = LaunchConfiguration('y_pose', default='-4.25')    # Default start cell world-y for fixed 21x21 procedural maze.
 
+    # Backward-compatible launch arg (legacy name).
     use_slam_arg = DeclareLaunchArgument(
         'use_slam',
         default_value='false',
+        description='(Deprecated) Enable/disable SLAM mode; use slam:=true/false instead.'
+    )
+
+    slam_arg = DeclareLaunchArgument(
+        'slam',
+        default_value='false',
         description='Enable SLAM mode (true) or runtime static-map mode (false).'
+    )
+    
+    # Legacy compatibility: keep old use_slam:=true behavior.
+    # If both args are provided with conflicting values, slam:=... takes precedence.
+    legacy_use_slam_true = SetLaunchConfiguration(
+        name='slam',
+        value='true',
+        condition=IfCondition(use_slam),
     )
     
     # To get the correct x & y coordinates for spawning the turtlebot3 robot, 
@@ -154,7 +171,7 @@ def generate_launch_description():
             'map': runtime_map_path,
             'params_file' : params_config_file_path
             }.items(),
-        condition=UnlessCondition(use_slam),
+        condition=UnlessCondition(slam),
     )
 
     navigation_slam = IncludeLaunchDescription(
@@ -167,7 +184,7 @@ def generate_launch_description():
             'map': runtime_map_path,
             'params_file' : params_config_file_path
             }.items(),
-        condition=IfCondition(use_slam),
+        condition=IfCondition(slam),
     )
      
 
@@ -175,6 +192,8 @@ def generate_launch_description():
 
     # Add the commands to the launch description
     ld.add_action(use_slam_arg)
+    ld.add_action(slam_arg)
+    ld.add_action(legacy_use_slam_true)
     ld.add_action(setting_turtlebot3_model)
     ld.add_action(gzserver_cmd)
     ld.add_action(gzclient_cmd)
