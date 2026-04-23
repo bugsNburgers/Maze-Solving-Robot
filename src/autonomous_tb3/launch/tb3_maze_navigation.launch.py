@@ -51,7 +51,7 @@ def generate_launch_description():
     use_slam_arg = DeclareLaunchArgument(
         'use_slam',
         default_value='false',
-        description='(Deprecated) Enable/disable SLAM mode; use slam:=true/false instead.'
+        description='(Deprecated) Enable/disable SLAM mode. Use slam:=true/false instead.'
     )
 
     slam_arg = DeclareLaunchArgument(
@@ -60,8 +60,7 @@ def generate_launch_description():
         description='Enable SLAM mode (true) or runtime static-map mode (false).'
     )
     
-    # Legacy compatibility: keep old use_slam:=true behavior.
-    # If both args are provided with conflicting values, slam:=... takes precedence.
+    # Legacy compatibility: keep old use_slam:=true behavior by forcing slam=true.
     legacy_use_slam_true = SetLaunchConfiguration(
         name='slam',
         value='true',
