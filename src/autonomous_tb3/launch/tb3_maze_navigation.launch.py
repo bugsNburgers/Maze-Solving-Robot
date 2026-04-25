@@ -78,6 +78,12 @@ def generate_launch_description():
         value="waffle"
     )
 
+    # Avoid FastDDS shared-memory lock failures that can break topic exchange.
+    disable_fastdds_shm = SetEnvironmentVariable(
+        name="FASTDDS_BUILTIN_TRANSPORTS",
+        value="UDPv4"
+    )
+
     gzserver_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_gazebo_ros, 'launch', 'gzserver.launch.py')
@@ -141,7 +147,7 @@ def generate_launch_description():
         )        
     )
     
-    # Integrating Nav2 Stack : Launching the bringup_launch.py file
+    # Integrating Nav2 Stack for runtime static map mode.
     navigation_runtime_map = IncludeLaunchDescription(
         PythonLaunchDescriptionSource (
             launch_file_path=os.path.join(get_package_share_directory('nav2_bringup'), "launch", "bringup_launch.py")
@@ -157,6 +163,7 @@ def generate_launch_description():
         condition=UnlessCondition(use_slam),
     )
 
+    # In SLAM mode, launch Nav2 with slam:=True so planner/controller are available.
     navigation_slam = IncludeLaunchDescription(
         PythonLaunchDescriptionSource (
             launch_file_path=os.path.join(get_package_share_directory('nav2_bringup'), "launch", "bringup_launch.py")
@@ -176,12 +183,13 @@ def generate_launch_description():
     # Add the commands to the launch description
     ld.add_action(use_slam_arg)
     ld.add_action(setting_turtlebot3_model)
+    ld.add_action(disable_fastdds_shm)
     ld.add_action(gzserver_cmd)
     ld.add_action(gzclient_cmd)
     ld.add_action(maze_spawner)
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(TimerAction(period=2.0, actions=[spawn_turtlebot_cmd]))
-    # Nav2 bringup with slam:=True already launches SLAM toolbox internally.
+    # Nav2 bringup with slam:=True launches SLAM toolbox internally.
     ld.add_action(TimerAction(period=6.0, actions=[navigation_runtime_map]))
     ld.add_action(TimerAction(period=6.0, actions=[navigation_slam]))
     ld.add_action(TimerAction(period=8.0, actions=[rviz_launching]))
